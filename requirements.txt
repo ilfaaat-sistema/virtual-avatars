@@ -1,0 +1,4 @@
+aiogram~=3.19
+anthropic
+python-dotenv
+aiosqlite
