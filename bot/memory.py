@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import config
 import db.store as store
 
