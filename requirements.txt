@@ -2,3 +2,4 @@ aiogram~=3.19
 anthropic
 python-dotenv
 aiosqlite
+elevenlabs>=1.0.0

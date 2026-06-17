@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -15,3 +17,9 @@ DATA_DIR: Path = Path(os.getenv("DATA_DIR", "data"))
 
 MODEL: str = "claude-sonnet-4-6"
 MAX_TOKENS: int = 1024
+
+# Stage 2: ElevenLabs
+ELEVENLABS_API_KEY: str | None = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID: str | None = os.getenv("ELEVENLABS_VOICE_ID")
+ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
+VOICE_MAX_CHARS: int = int(os.getenv("VOICE_MAX_CHARS", "600"))
