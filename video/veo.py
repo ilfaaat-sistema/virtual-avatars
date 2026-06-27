@@ -76,12 +76,33 @@ def _build_prompt(scene: str, talking: bool, spoken_line: Optional[str]) -> str:
     return f"{body}{_COMPOSITION_SUFFIX}"
 
 
+def _make_client():
+    """Build genai client: Vertex AI (GOOGLE_SA_JSON) → API key fallback."""
+    from google import genai
+
+    if config.GOOGLE_SA_JSON and config.GOOGLE_CLOUD_PROJECT:
+        import json, os, tempfile
+        sa = json.loads(config.GOOGLE_SA_JSON)
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(sa, tmp)
+        tmp.close()
+        os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", tmp.name)
+        logger.info("Veo: Vertex AI auth (project=%s)", config.GOOGLE_CLOUD_PROJECT)
+        return genai.Client(
+            vertexai=True,
+            project=config.GOOGLE_CLOUD_PROJECT,
+            location=config.GOOGLE_CLOUD_LOCATION,
+        )
+
+    logger.info("Veo: API key auth")
+    return genai.Client(api_key=config.VEO_API_KEY)
+
+
 def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
     """Blocking call: submit → poll → save mp4. Returns temp file path."""
-    from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=config.VEO_API_KEY)
+    client = _make_client()
 
     # Build reference images (reference images require veo-3.1-generate-preview,
     # not the Lite variant — if VEO_MODEL is set to Lite they will be silently ignored)
