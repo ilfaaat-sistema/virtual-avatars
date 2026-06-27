@@ -16,3 +16,4 @@ identity/*.jpeg
 identity/*.png
 identity/*.webp
 video_clips/*.mp4
+create_render_service.sh
