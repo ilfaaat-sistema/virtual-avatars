@@ -88,7 +88,7 @@ def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
     ref_images: list = []
     for path in identity_paths:
         try:
-            img = types.Image.from_file(path)
+            img = types.Image.from_file(location=path)
             ref_images.append(
                 types.VideoGenerationReferenceImage(image=img, reference_type="asset")
             )
