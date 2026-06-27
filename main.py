@@ -39,6 +39,9 @@ async def main() -> None:
     dp.include_router(admin_router)   # admin handlers first (document upload etc.)
     dp.include_router(handlers_router)
 
+    from bot.jobs import start_worker
+    await start_worker(bot)
+
     logger.info("Bot starting — polling...")
     await dp.start_polling(bot)
 

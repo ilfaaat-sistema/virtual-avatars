@@ -25,7 +25,7 @@ def _tts_sync(text: str) -> bytes:
         voice_id=config.ELEVENLABS_VOICE_ID,
         text=text,
         model_id=config.ELEVENLABS_MODEL_ID,
-        output_format="mp3_44100_128",
+        output_format="opus_48000_128",
     )
     return b"".join(chunks)
 
@@ -50,8 +50,7 @@ async def tts(text: str) -> bytes | None:
         logger.debug("Текст длиннее %d символов — отправляем текстом", config.VOICE_MAX_CHARS)
         return None
     try:
-        mp3_bytes = await asyncio.to_thread(_tts_sync, text)
-        ogg_bytes = await _mp3_to_ogg(mp3_bytes)
+        ogg_bytes = await asyncio.to_thread(_tts_sync, text)
         return ogg_bytes
     except Exception as e:
         logger.error("Ошибка TTS: %s", e)
@@ -76,26 +75,3 @@ async def stt(voice_data: bytes) -> str | None:
     finally:
         if tmp_path.exists():
             tmp_path.unlink()
-
-
-async def _mp3_to_ogg(mp3_bytes: bytes) -> bytes:
-    """ffmpeg: MP3 → OGG/Opus 48kHz mono (формат Telegram sendVoice)."""
-    proc = await asyncio.create_subprocess_exec(
-        "ffmpeg",
-        "-f", "mp3",
-        "-i", "pipe:0",
-        "-c:a", "libopus",
-        "-ar", "48000",
-        "-ac", "1",
-        "-b:a", "48k",
-        "-f", "ogg",
-        "-y",
-        "pipe:1",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    ogg_bytes, stderr = await proc.communicate(input=mp3_bytes)
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg завершился с ошибкой: {stderr.decode(errors='replace')}")
-    return ogg_bytes

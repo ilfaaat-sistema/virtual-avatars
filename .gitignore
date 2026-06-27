@@ -11,3 +11,8 @@ node_modules/
 .venv/
 .claude/
 dist/
+identity/*.jpg
+identity/*.jpeg
+identity/*.png
+identity/*.webp
+video_clips/*.mp4
