@@ -104,24 +104,27 @@ def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
 
     client = _make_client()
 
-    # Build reference images (reference images require veo-3.1-generate-preview,
-    # not the Lite variant — if VEO_MODEL is set to Lite they will be silently ignored)
-    ref_images: list = []
-    for path in identity_paths:
-        try:
-            img = types.Image.from_file(location=path)
-            ref_images.append(
-                types.VideoGenerationReferenceImage(image=img, reference_type="asset")
-            )
-        except Exception as e:
-            logger.warning("Не удалось загрузить референс %s: %s", path, e)
+    # Lite/Fast models don't support reference images or resolution param
+    supports_refs = not any(x in config.VEO_MODEL for x in ("lite", "fast"))
 
-    gen_config = types.GenerateVideosConfig(
-        aspect_ratio="9:16",
-        resolution=config.VEO_RESOLUTION,
-        negative_prompt=_NEGATIVE_PROMPT,
-        **({"reference_images": ref_images} if ref_images else {}),
-    )
+    ref_images: list = []
+    if supports_refs:
+        for path in identity_paths:
+            try:
+                img = types.Image.from_file(location=path)
+                ref_images.append(
+                    types.VideoGenerationReferenceImage(image=img, reference_type="asset")
+                )
+            except Exception as e:
+                logger.warning("Не удалось загрузить референс %s: %s", path, e)
+
+    cfg_kwargs: dict = {"aspect_ratio": "9:16", "negative_prompt": _NEGATIVE_PROMPT}
+    if supports_refs:
+        cfg_kwargs["resolution"] = config.VEO_RESOLUTION
+    if ref_images:
+        cfg_kwargs["reference_images"] = ref_images
+
+    gen_config = types.GenerateVideosConfig(**cfg_kwargs)
 
     logger.info("Veo: отправляем задачу (модель=%s, референсов=%d)", config.VEO_MODEL, len(ref_images))
     operation = client.models.generate_videos(
@@ -143,12 +146,20 @@ def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
         raise RuntimeError("Veo вернул пустой список видео")
 
     generated_video = videos[0]
-    client.files.download(file=generated_video.video)
+    video = generated_video.video
 
     tmp_dir = config.DATA_DIR / "tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     out_path = tmp_dir / f"veo_{uuid.uuid4().hex}.mp4"
-    generated_video.video.save(str(out_path))
+
+    if getattr(video, "video_bytes", None):
+        # Vertex AI returns bytes inline
+        out_path.write_bytes(video.video_bytes)
+    else:
+        # AI Studio returns a file URI — download first
+        client.files.download(file=video)
+        video.save(str(out_path))
+
     logger.info("Veo: видео сохранено → %s (%d байт)", out_path, out_path.stat().st_size)
     return str(out_path)
 
