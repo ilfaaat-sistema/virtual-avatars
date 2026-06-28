@@ -102,9 +102,11 @@ def _postprocess_sync(video_path: str) -> str:
     vf = f"crop={crop_size}:{crop_size}:{crop_x}:{crop_y},scale={TARGET_SIZE}:{TARGET_SIZE}"
     cmd = [
         get_ffmpeg(), "-y",
+        "-threads", "1",          # меньше per-thread буферов x264 → ниже пик памяти
         "-i", video_path,
         "-vf", vf,
         "-c:v", "libx264",
+        "-preset", "veryfast",    # меньше lookahead-буферов; на 640×640 качество ок
         "-profile:v", "baseline",
         "-level", "3.0",
         "-pix_fmt", "yuv420p",

@@ -9,7 +9,7 @@ import db.store as store
 
 logger = logging.getLogger(__name__)
 
-_WORKER_CONCURRENCY = 2   # max parallel Veo jobs (avoid Veo rate limits)
+_WORKER_CONCURRENCY = 1   # 1 пайплайн за раз — пик памяти в 512 MB Render-плана
 _STALE_MINUTES = 10       # processing jobs older than this → re-queue on startup
 _POLL_INTERVAL = 5        # seconds between queue checks
 

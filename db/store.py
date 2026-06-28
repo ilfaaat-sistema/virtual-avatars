@@ -201,13 +201,21 @@ class _SupabaseStore:
         self._url = url
         self._key = key
         self._client = None
+        self._scoped = None
 
     async def _sb(self):
-        """Ленивая инициализация клиента + переключение на схему avatar_bot."""
-        if self._client is None:
-            from supabase import acreate_client
-            self._client = await acreate_client(self._url, self._key)
-        return self._client.schema("avatar_bot")
+        """Ленивая инициализация клиента + переключение на схему avatar_bot.
+
+        scoped-клиент кешируется: раньше `.schema()` вызывался на каждый запрос
+        (в т.ч. каждые 5 c в поллинге очереди) и создавал новый postgrest/httpx-клиент,
+        который не закрывался → утечка памяти ~0.7 MB за вызов → OOM на 512 MB.
+        """
+        if self._scoped is None:
+            if self._client is None:
+                from supabase import acreate_client
+                self._client = await acreate_client(self._url, self._key)
+            self._scoped = self._client.schema("avatar_bot")
+        return self._scoped
 
     async def init_db(self) -> None:
         await self._sb()  # проверяем подключение

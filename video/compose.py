@@ -35,6 +35,7 @@ def _mux_sync(video_path: str, audio_bytes: bytes) -> str:
         # -c:a aac    — encode audio to AAC (required for Telegram mp4)
         cmd = [
             get_ffmpeg(), "-y",
+            "-threads", "1",
             "-i", str(video_path),
             "-i", str(audio_tmp),
             "-map", "0:v:0",
