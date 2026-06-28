@@ -17,3 +17,8 @@ identity/*.png
 identity/*.webp
 video_clips/*.mp4
 create_render_service.sh
+
+# Секреты — НЕ коммитить
+update_render_env.sh
+gen-lang-client-*.json
+*-service-account*.json
