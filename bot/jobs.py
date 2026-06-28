@@ -36,6 +36,21 @@ async def _find_cached_clip() -> str | None:
     return str(clips[0]) if clips else None
 
 
+async def _recording_action(bot, chat_id: int) -> None:
+    """Держит в Telegram статус «записывает видео…» пока генерится кружочек.
+    Экшен гаснет через ~5с, поэтому пере-отправляем каждые 4.5с."""
+    from aiogram.enums import ChatAction
+    try:
+        while True:
+            try:
+                await bot.send_chat_action(chat_id, ChatAction.RECORD_VIDEO_NOTE)
+            except Exception:
+                pass
+            await asyncio.sleep(4.5)
+    except asyncio.CancelledError:
+        pass
+
+
 async def _process_job(job: dict, bot) -> None:
     """Full pipeline for one video job: Veo → compose → postprocess → sendVideoNote."""
     job_id = job["id"]
@@ -45,6 +60,7 @@ async def _process_job(job: dict, bot) -> None:
     spoken_line = job["spoken_line"] or ""
 
     raw_mp4 = muxed_mp4 = final_mp4 = None
+    action_task = asyncio.create_task(_recording_action(bot, chat_id))
 
     try:
         from video import get_provider
@@ -76,6 +92,7 @@ async def _process_job(job: dict, bot) -> None:
 
         await store.update_video_job_status(job_id, "done")
         await store.increment_video_count(chat_id)
+        await store.log_usage("veo", chat_id, video_seconds=config.VIDEO_TARGET_DURATION)
         logger.info("jobs: id=%d готово → отправлен кружочек", job_id)
 
     except Exception as e:
@@ -117,6 +134,7 @@ async def _process_job(job: dict, bot) -> None:
             logger.error("jobs: fallback для id=%d тоже упал: %s", job_id, fb_err)
 
     finally:
+        action_task.cancel()
         # Clean up temp files
         for path in (raw_mp4, muxed_mp4):
             if path and Path(path).exists():

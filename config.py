@@ -43,4 +43,13 @@ VIDEO_TARGET_DURATION: int = int(os.getenv("VIDEO_TARGET_DURATION", "8"))
 IDENTITY_DIR: Path = Path(os.getenv("IDENTITY_DIR", "identity"))
 # Референс-фото лица в base64 (на Render identity/ пустая — фото кладём сюда приватно)
 IDENTITY_IMAGE_B64: str | None = os.getenv("IDENTITY_IMAGE_B64") or None
+
+# Цены провайдеров для отчёта /costs (env-переопределяемо; дефолты на ~2026)
+PRICE_CLAUDE_IN: float = float(os.getenv("PRICE_CLAUDE_IN_USD_PER_MTOK", "1.0"))       # Haiku 4.5 вход
+PRICE_CLAUDE_OUT: float = float(os.getenv("PRICE_CLAUDE_OUT_USD_PER_MTOK", "5.0"))     # Haiku 4.5 выход
+PRICE_CLAUDE_CACHE_READ: float = float(os.getenv("PRICE_CLAUDE_CACHE_READ_USD_PER_MTOK", "0.10"))
+PRICE_CLAUDE_CACHE_WRITE: float = float(os.getenv("PRICE_CLAUDE_CACHE_WRITE_USD_PER_MTOK", "1.25"))
+PRICE_ELEVEN_PER_1K: float = float(os.getenv("PRICE_ELEVENLABS_USD_PER_1K_CHARS", "0.10"))
+PRICE_VEO_PER_SEC: float = float(os.getenv("PRICE_VEO_USD_PER_SEC", "0.15"))           # Veo 3.1 Fast
+USD_RUB_RATE: float = float(os.getenv("USD_RUB_RATE", "100"))                          # фолбэк, если ЦБ недоступен
 VIDEO_CLIPS_DIR: Path = Path(os.getenv("VIDEO_CLIPS_DIR", "video_clips"))

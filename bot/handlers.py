@@ -168,9 +168,9 @@ async def _handle_video(message: Message, reply: str, meta: dict) -> None:
     scene = meta.get("scene", "нейтральный домашний фон, тёплый свет")
     spoken_line = meta.get("spoken_line", reply[:250])
 
-    # Daily limit check
+    # Daily limit check (0 = безлимит)
     video_count = await store.get_video_count_today(chat_id)
-    if video_count >= config.VIDEO_DAILY_LIMIT_PER_USER:
+    if config.VIDEO_DAILY_LIMIT_PER_USER and video_count >= config.VIDEO_DAILY_LIMIT_PER_USER:
         logger.info("Лимит кружочков исчерпан для chat=%d (%d шт.)", chat_id, video_count)
         if reply:
             await message.answer(reply)

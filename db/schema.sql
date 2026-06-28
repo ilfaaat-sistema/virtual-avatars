@@ -47,6 +47,21 @@ CREATE TABLE IF NOT EXISTS avatar_bot.video_jobs (
 CREATE INDEX IF NOT EXISTS idx_video_jobs_status_created
     ON avatar_bot.video_jobs (status, created_at);
 
+-- Учёт расходов провайдеров (для админ-команды /costs)
+CREATE TABLE IF NOT EXISTS avatar_bot.usage_log (
+    id            BIGSERIAL PRIMARY KEY,
+    ts            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    chat_id       BIGINT,
+    provider      TEXT NOT NULL,            -- 'claude' | 'elevenlabs' | 'veo'
+    in_tokens     BIGINT DEFAULT 0,
+    out_tokens    BIGINT DEFAULT 0,
+    cache_read    BIGINT DEFAULT 0,
+    cache_write   BIGINT DEFAULT 0,
+    chars         BIGINT DEFAULT 0,
+    video_seconds NUMERIC DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_usage_log_ts ON avatar_bot.usage_log (ts);
+
 -- ──────────────────────────────────────────────────────────────────────────
 -- ДОСТУП К DATA API (PostgREST). Без этого бот падает с
 --   PGRST106 "Invalid schema: avatar_bot"

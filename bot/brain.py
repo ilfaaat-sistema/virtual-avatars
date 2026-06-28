@@ -6,6 +6,7 @@ import logging
 import anthropic
 
 import config
+import db.store as store
 from bot import persona_kb, memory
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,13 @@ async def ask(chat_id: int, user_text: str, voice_input: bool = False) -> tuple[
                     getattr(usage, "cache_read_input_tokens", 0),
                     usage.input_tokens,
                     usage.output_tokens,
+                )
+                await store.log_usage(
+                    "claude", chat_id,
+                    in_tokens=usage.input_tokens,
+                    out_tokens=usage.output_tokens,
+                    cache_read=getattr(usage, "cache_read_input_tokens", 0) or 0,
+                    cache_write=getattr(usage, "cache_creation_input_tokens", 0) or 0,
                 )
                 fmt, reply, meta = _parse_format(raw_reply)
                 # Сохраняем оригинальный текст пользователя (без метки) и чистый ответ

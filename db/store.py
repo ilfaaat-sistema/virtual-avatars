@@ -55,7 +55,56 @@ CREATE TABLE IF NOT EXISTS video_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_video_jobs_status_created
     ON video_jobs (status, created_at);
+
+CREATE TABLE IF NOT EXISTS usage_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts            TEXT NOT NULL DEFAULT (datetime('now')),
+    chat_id       INTEGER,
+    provider      TEXT NOT NULL,
+    in_tokens     INTEGER DEFAULT 0,
+    out_tokens    INTEGER DEFAULT 0,
+    cache_read    INTEGER DEFAULT 0,
+    cache_write   INTEGER DEFAULT 0,
+    chars         INTEGER DEFAULT 0,
+    video_seconds REAL    DEFAULT 0
+);
 """
+
+_USAGE_COLS = ("in_tokens", "out_tokens", "cache_read", "cache_write", "chars", "video_seconds")
+
+
+def _parse_ts(value) -> datetime | None:
+    """Парсит ts из Supabase (ISO+tz) или SQLite ('YYYY-MM-DD HH:MM:SS', UTC)."""
+    if not value:
+        return None
+    s = str(value).strip().replace(" ", "T", 1)
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _aggregate_usage(rows: list[dict]) -> dict:
+    """Суммирует usage по периодам today / month / all + самая ранняя ts."""
+    now = datetime.now(timezone.utc)
+    today0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month0 = today0.replace(day=1)
+    out = {p: {c: 0 for c in _USAGE_COLS} for p in ("today", "month", "all")}
+    since: datetime | None = None
+    for r in rows:
+        ts = _parse_ts(r.get("ts"))
+        if ts and (since is None or ts < since):
+            since = ts
+        for c in _USAGE_COLS:
+            v = r.get(c) or 0
+            out["all"][c] += v
+            if ts and ts >= month0:
+                out["month"][c] += v
+            if ts and ts >= today0:
+                out["today"][c] += v
+    out["since"] = since
+    return out
 
 _DB_PATH = Path("data/bot.db")
 
@@ -190,6 +239,25 @@ class _SQLiteStore:
                 (chat_id, today),
             )
             await db.commit()
+
+    async def log_usage(self, provider: str, chat_id: int | None, fields: dict) -> None:
+        async with aiosqlite.connect(_DB_PATH) as db:
+            await db.execute(
+                """INSERT INTO usage_log
+                   (chat_id, provider, in_tokens, out_tokens, cache_read, cache_write, chars, video_seconds)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (chat_id, provider, *[fields.get(c, 0) for c in _USAGE_COLS]),
+            )
+            await db.commit()
+
+    async def get_cost_report(self) -> dict:
+        async with aiosqlite.connect(_DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                f"SELECT ts, {', '.join(_USAGE_COLS)} FROM usage_log"
+            )
+            rows = [dict(r) for r in await cursor.fetchall()]
+        return _aggregate_usage(rows)
 
 
 # ──────────────────────────────────────────────
@@ -336,6 +404,17 @@ class _SupabaseStore:
         else:
             await sb.table("daily_counters").insert({"chat_id": chat_id, "date": today, "video_count": 1}).execute()
 
+    async def log_usage(self, provider: str, chat_id: int | None, fields: dict) -> None:
+        sb = await self._sb()
+        row = {"provider": provider, "chat_id": chat_id}
+        row.update({c: fields.get(c, 0) for c in _USAGE_COLS})
+        await sb.table("usage_log").insert(row).execute()
+
+    async def get_cost_report(self) -> dict:
+        sb = await self._sb()
+        resp = await sb.table("usage_log").select("ts," + ",".join(_USAGE_COLS)).execute()
+        return _aggregate_usage(resp.data or [])
+
 
 # ──────────────────────────────────────────────
 # Публичный API модуля
@@ -395,3 +474,15 @@ async def get_video_count_today(chat_id: int) -> int:
 
 async def increment_video_count(chat_id: int) -> None:
     await _store.increment_video_count(chat_id)
+
+
+async def log_usage(provider: str, chat_id: int | None = None, **fields) -> None:
+    """Записать расход (claude/elevenlabs/veo). Никогда не бросает — учёт не должен ронять бота."""
+    try:
+        await _store.log_usage(provider, chat_id, fields)
+    except Exception as e:
+        logger.warning("usage_log: не удалось записать расход %s: %s", provider, e)
+
+
+async def get_cost_report() -> dict:
+    return await _store.get_cost_report()

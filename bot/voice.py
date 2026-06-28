@@ -51,6 +51,8 @@ async def tts(text: str) -> bytes | None:
         return None
     try:
         ogg_bytes = await asyncio.to_thread(_tts_sync, text)
+        import db.store as store
+        await store.log_usage("elevenlabs", chars=len(text))
         return ogg_bytes
     except Exception as e:
         logger.error("Ошибка TTS: %s", e)
