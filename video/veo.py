@@ -104,34 +104,42 @@ def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
 
     client = _make_client()
 
-    # Lite/Fast models don't support reference images or resolution param
-    supports_refs = not any(x in config.VEO_MODEL for x in ("lite", "fast"))
+    # Параметр resolution принимают только полные модели (не lite/fast).
+    # Референсы пытаемся отправить ВСЕГДА — если модель их не примет, повторим без них.
+    supports_resolution = not any(x in config.VEO_MODEL for x in ("lite", "fast"))
 
     ref_images: list = []
-    if supports_refs:
-        for path in identity_paths:
-            try:
-                img = types.Image.from_file(location=path)
-                ref_images.append(
-                    types.VideoGenerationReferenceImage(image=img, reference_type="asset")
-                )
-            except Exception as e:
-                logger.warning("Не удалось загрузить референс %s: %s", path, e)
+    for path in identity_paths:
+        try:
+            img = types.Image.from_file(location=path)
+            ref_images.append(
+                types.VideoGenerationReferenceImage(image=img, reference_type="asset")
+            )
+        except Exception as e:
+            logger.warning("Не удалось загрузить референс %s: %s", path, e)
 
-    cfg_kwargs: dict = {"aspect_ratio": "9:16", "negative_prompt": _NEGATIVE_PROMPT}
-    if supports_refs:
-        cfg_kwargs["resolution"] = config.VEO_RESOLUTION
-    if ref_images:
-        cfg_kwargs["reference_images"] = ref_images
+    def _build_cfg(with_refs: bool):
+        kw: dict = {"aspect_ratio": "9:16", "negative_prompt": _NEGATIVE_PROMPT}
+        if supports_resolution:
+            kw["resolution"] = config.VEO_RESOLUTION
+        if with_refs and ref_images:
+            kw["reference_images"] = ref_images
+        return types.GenerateVideosConfig(**kw)
 
-    gen_config = types.GenerateVideosConfig(**cfg_kwargs)
-
-    logger.info("Veo: отправляем задачу (модель=%s, референсов=%d)", config.VEO_MODEL, len(ref_images))
-    operation = client.models.generate_videos(
-        model=config.VEO_MODEL,
-        prompt=prompt,
-        config=gen_config,
-    )
+    use_refs = bool(ref_images)
+    logger.info("Veo: отправляем задачу (модель=%s, референсов=%d)", config.VEO_MODEL, len(ref_images) if use_refs else 0)
+    try:
+        operation = client.models.generate_videos(
+            model=config.VEO_MODEL, prompt=prompt, config=_build_cfg(use_refs),
+        )
+    except Exception as e:
+        if use_refs:
+            logger.warning("Veo: модель не приняла reference_images (%s) — повтор БЕЗ референса", str(e)[:200])
+            operation = client.models.generate_videos(
+                model=config.VEO_MODEL, prompt=prompt, config=_build_cfg(False),
+            )
+        else:
+            raise
 
     deadline = time.monotonic() + _TIMEOUT_SECONDS
     while not operation.done:

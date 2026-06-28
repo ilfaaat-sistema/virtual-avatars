@@ -41,4 +41,6 @@ GOOGLE_SA_JSON: str | None = os.getenv("GOOGLE_SA_JSON")
 VIDEO_DAILY_LIMIT_PER_USER: int = int(os.getenv("VIDEO_DAILY_LIMIT_PER_USER", "2"))
 VIDEO_TARGET_DURATION: int = int(os.getenv("VIDEO_TARGET_DURATION", "8"))
 IDENTITY_DIR: Path = Path(os.getenv("IDENTITY_DIR", "identity"))
+# Референс-фото лица в base64 (на Render identity/ пустая — фото кладём сюда приватно)
+IDENTITY_IMAGE_B64: str | None = os.getenv("IDENTITY_IMAGE_B64") or None
 VIDEO_CLIPS_DIR: Path = Path(os.getenv("VIDEO_CLIPS_DIR", "video_clips"))

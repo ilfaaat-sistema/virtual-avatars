@@ -29,6 +29,24 @@ def _ensure_ffmpeg() -> None:
         logger.error("ffmpeg NOT available — video processing will fail: %s", e)
 
 
+def _ensure_identity() -> None:
+    """На Render папка identity/ пустая (gitignored). Если задан IDENTITY_IMAGE_B64 —
+    декодируем фото лица в IDENTITY_DIR/master.jpg, чтобы Veo мог взять референс."""
+    import base64
+
+    if not config.IDENTITY_IMAGE_B64:
+        return
+    config.IDENTITY_DIR.mkdir(parents=True, exist_ok=True)
+    target = config.IDENTITY_DIR / "master.jpg"
+    if target.exists() and target.stat().st_size > 0:
+        return
+    try:
+        target.write_bytes(base64.b64decode(config.IDENTITY_IMAGE_B64))
+        logger.info("identity: фото лица записано → %s (%d байт)", target, target.stat().st_size)
+    except Exception as e:
+        logger.warning("identity: не удалось декодировать IDENTITY_IMAGE_B64: %s", e)
+
+
 def cleanup_tmp() -> None:
     tmp = config.DATA_DIR / "tmp"
     if tmp.exists():
@@ -38,6 +56,7 @@ def cleanup_tmp() -> None:
 
 async def main() -> None:
     _ensure_ffmpeg()
+    _ensure_identity()
     cleanup_tmp()
     await store.init_db()
     persona_kb.load()
