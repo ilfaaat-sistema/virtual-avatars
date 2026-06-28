@@ -81,6 +81,15 @@ async def _process_job(job: dict, bot) -> None:
     except Exception as e:
         logger.error("jobs: id=%d ошибка: %s", job_id, e, exc_info=True)
         await store.update_video_job_status(job_id, "failed", error=str(e)[:500])
+        # Notify admin with actual error for diagnostics
+        try:
+            await bot.send_message(
+                config.ADMIN_TELEGRAM_ID,
+                f"❌ Veo job #{job_id} упал:\n<code>{str(e)[:300]}</code>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
         # Fallback: notify user that video failed
         try:
             await bot.send_message(

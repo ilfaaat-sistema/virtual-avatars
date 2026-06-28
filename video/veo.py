@@ -173,8 +173,10 @@ class VeoProvider:
         spoken_line: Optional[str],
         duration_sec: int,  # TODO: scene extension for longer clips (not in MVP)
     ) -> str:
-        if not config.VEO_API_KEY:
-            raise RuntimeError("VEO_API_KEY не задан")
+        _has_api_key = bool(config.VEO_API_KEY)
+        _has_vertex = bool(config.GOOGLE_SA_JSON and config.GOOGLE_CLOUD_PROJECT)
+        if not _has_api_key and not _has_vertex:
+            raise RuntimeError("Veo не настроен: нужен VEO_API_KEY или GOOGLE_SA_JSON+GOOGLE_CLOUD_PROJECT")
 
         paths = _pick_identity_images(identity_images)
         prompt = _build_prompt(scene_prompt, talking, spoken_line)
