@@ -158,6 +158,11 @@ async def start_worker(bot) -> None:
     Initialize: recover stale jobs from previous run, then start the worker loop.
     Call once at bot startup.
     """
-    await store.fail_stale_jobs(older_than_minutes=_STALE_MINUTES)
+    # Non-critical cleanup — must never crash the whole bot at startup
+    # (a DB hiccup here previously crash-looped the process before polling).
+    try:
+        await store.fail_stale_jobs(older_than_minutes=_STALE_MINUTES)
+    except Exception as e:
+        logger.error("jobs: не удалось очистить зависшие задачи на старте: %s", e)
     asyncio.create_task(_worker_loop(bot))
     logger.info("jobs: воркер инициализирован")

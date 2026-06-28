@@ -46,3 +46,21 @@ CREATE TABLE IF NOT EXISTS avatar_bot.video_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_video_jobs_status_created
     ON avatar_bot.video_jobs (status, created_at);
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- ДОСТУП К DATA API (PostgREST). Без этого бот падает с
+--   PGRST106 "Invalid schema: avatar_bot"
+-- Бот ходит в БД серверным service_role-ключом. anon НЕ выдаём (RLS off).
+GRANT USAGE ON SCHEMA avatar_bot TO service_role, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA avatar_bot TO service_role, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA avatar_bot TO service_role, authenticated;  -- BIGSERIAL id
+ALTER DEFAULT PRIVILEGES IN SCHEMA avatar_bot
+    GRANT ALL ON TABLES TO service_role, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA avatar_bot
+    GRANT ALL ON SEQUENCES TO service_role, authenticated;
+
+-- ВАЖНО: помимо GRANT'ов схему нужно ВКЛЮЧИТЬ в Data API, иначе PGRST106:
+--   Dashboard → Project Settings → API → Exposed schemas → добавить avatar_bot → Save.
+-- (Эквивалент в SQL, но менее durable — может сброситься при ребуте платформы:
+--   ALTER ROLE authenticator SET pgrst.db_schemas = 'public, graphql_public, avatar_bot';
+--   NOTIFY pgrst, 'reload config'; )
