@@ -6,6 +6,11 @@ import subprocess
 import uuid
 from pathlib import Path
 
+try:
+    import static_ffmpeg as _sf; _sf.add_paths()
+except Exception:
+    pass
+
 import config
 
 logger = logging.getLogger(__name__)

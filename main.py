@@ -24,8 +24,14 @@ def _ensure_ffmpeg() -> None:
         import static_ffmpeg
         static_ffmpeg.add_paths()
         logger.info("ffmpeg: static binaries added to PATH")
-    except ImportError:
-        pass  # system ffmpeg used
+    except Exception as e:
+        logger.warning("ffmpeg: static_ffmpeg setup failed: %s", e)
+
+    found = shutil.which("ffmpeg")
+    if found:
+        logger.info("ffmpeg: OK (%s)", found)
+    else:
+        logger.error("ffmpeg NOT found in PATH — video processing will fail")
 
 
 def cleanup_tmp() -> None:
