@@ -6,3 +6,4 @@ elevenlabs>=1.0.0
 supabase>=2.0.0
 google-genai>=1.44.0
 opencv-python-headless
+static-ffmpeg>=2.5

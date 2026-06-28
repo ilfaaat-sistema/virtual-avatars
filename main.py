@@ -19,6 +19,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _ensure_ffmpeg() -> None:
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+        logger.info("ffmpeg: static binaries added to PATH")
+    except ImportError:
+        pass  # system ffmpeg used
+
+
 def cleanup_tmp() -> None:
     tmp = config.DATA_DIR / "tmp"
     if tmp.exists():
@@ -27,6 +36,7 @@ def cleanup_tmp() -> None:
 
 
 async def main() -> None:
+    _ensure_ffmpeg()
     cleanup_tmp()
     await store.init_db()
     persona_kb.load()
