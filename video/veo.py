@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 # Polling interval and total timeout for Veo generation
 _POLL_INTERVAL = 20        # seconds between status checks
 _TIMEOUT_SECONDS = 240     # 4 minutes max
+# Сколько раз повторить С референсом, если Veo вернул пустой результат (RAI-фильтр).
+# Фильтр интермиттентный → повтор с тем же лицом обычно проходит. Хотим кружочек С ЛИЦОМ.
+_EMPTY_RETRIES = 2
 
 # Suffix appended to every prompt — forces portrait composition suitable for video notes
 _COMPOSITION_SUFFIX = (
@@ -98,6 +101,28 @@ def _make_client():
     return genai.Client(api_key=config.VEO_API_KEY)
 
 
+def _submit_and_poll(client, model: str, prompt: str, cfg) -> list:
+    """Сабмит задачи Veo + поллинг до завершения. Возвращает generated_videos
+    (может быть пустым, если сработал RAI/safety-фильтр — тогда логируем причину)."""
+    operation = client.models.generate_videos(model=model, prompt=prompt, config=cfg)
+    deadline = time.monotonic() + _TIMEOUT_SECONDS
+    while not operation.done:
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"Veo: превышен таймаут {_TIMEOUT_SECONDS}с")
+        time.sleep(_POLL_INTERVAL)
+        operation = client.operations.get(operation)
+        logger.debug("Veo: статус операции — %s", operation.metadata)
+    result = operation.result
+    videos = getattr(result, "generated_videos", None) or []
+    if not videos:
+        logger.warning(
+            "Veo: пустой результат (rai_filtered=%s, reasons=%s)",
+            getattr(result, "rai_media_filtered_count", None),
+            getattr(result, "rai_media_filtered_reasons", None),
+        )
+    return videos
+
+
 def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
     """Blocking call: submit → poll → save mp4. Returns temp file path."""
     from google.genai import types
@@ -129,29 +154,26 @@ def _generate_sync(prompt: str, identity_paths: list[str]) -> str:
     use_refs = bool(ref_images)
     logger.info("Veo: отправляем задачу (модель=%s, референсов=%d)", config.VEO_MODEL, len(ref_images) if use_refs else 0)
     try:
-        operation = client.models.generate_videos(
-            model=config.VEO_MODEL, prompt=prompt, config=_build_cfg(use_refs),
-        )
+        videos = _submit_and_poll(client, config.VEO_MODEL, prompt, _build_cfg(use_refs))
     except Exception as e:
-        if use_refs:
-            logger.warning("Veo: модель не приняла reference_images (%s) — повтор БЕЗ референса", str(e)[:200])
-            operation = client.models.generate_videos(
-                model=config.VEO_MODEL, prompt=prompt, config=_build_cfg(False),
-            )
+        # Без референса уходим ТОЛЬКО если модель не принимает сам параметр reference_images.
+        if use_refs and not isinstance(e, TimeoutError):
+            logger.warning("Veo: модель не приняла reference_images (%s) — без референса", str(e)[:200])
+            use_refs = False
+            videos = _submit_and_poll(client, config.VEO_MODEL, prompt, _build_cfg(False))
         else:
             raise
 
-    deadline = time.monotonic() + _TIMEOUT_SECONDS
-    while not operation.done:
-        if time.monotonic() > deadline:
-            raise TimeoutError(f"Veo: превышен таймаут {_TIMEOUT_SECONDS}с")
-        time.sleep(_POLL_INTERVAL)
-        operation = client.operations.get(operation)
-        logger.debug("Veo: статус операции — %s", operation.metadata)
+    # Пустой результат с референсом = RAI/safety-фильтр (интермиттентный).
+    # Нужен кружочек ИМЕННО С ЛИЦОМ → повторяем С референсом (НЕ подменяем лицо).
+    retries = 0
+    while not videos and use_refs and retries < _EMPTY_RETRIES:
+        retries += 1
+        logger.warning("Veo: пусто (RAI-фильтр?) — повтор С референсом %d/%d", retries, _EMPTY_RETRIES)
+        videos = _submit_and_poll(client, config.VEO_MODEL, prompt, _build_cfg(True))
 
-    videos = getattr(operation.result, "generated_videos", None) or []
     if not videos:
-        raise RuntimeError("Veo вернул пустой список видео")
+        raise RuntimeError("Veo вернул пустой список видео (RAI-фильтр?)")
 
     generated_video = videos[0]
     video = generated_video.video
