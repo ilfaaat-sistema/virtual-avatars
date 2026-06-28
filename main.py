@@ -20,18 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_ffmpeg() -> None:
+    """Resolve (and warm up) the ffmpeg binary at startup so failures surface
+    loudly in the worker logs rather than on the first video job."""
     try:
-        import static_ffmpeg
-        static_ffmpeg.add_paths()
-        logger.info("ffmpeg: static binaries added to PATH")
+        from video.ffmpeg_bin import get_ffmpeg
+        logger.info("ffmpeg: using %s", get_ffmpeg())
     except Exception as e:
-        logger.warning("ffmpeg: static_ffmpeg setup failed: %s", e)
-
-    found = shutil.which("ffmpeg")
-    if found:
-        logger.info("ffmpeg: OK (%s)", found)
-    else:
-        logger.error("ffmpeg NOT found in PATH — video processing will fail")
+        logger.error("ffmpeg NOT available — video processing will fail: %s", e)
 
 
 def cleanup_tmp() -> None:

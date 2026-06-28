@@ -6,12 +6,8 @@ import subprocess
 import uuid
 from pathlib import Path
 
-try:
-    import static_ffmpeg as _sf; _sf.add_paths()
-except Exception:
-    pass
-
 import config
+from video.ffmpeg_bin import get_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -76,17 +72,16 @@ def _compute_crop(video_w: int, video_h: int, face: tuple | None) -> tuple[int, 
 
 
 def _get_video_dimensions(video_path: str) -> tuple[int, int]:
-    """Returns (width, height) of the video via ffprobe."""
-    cmd = [
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height",
-        "-of", "csv=s=x:p=0",
-        video_path,
-    ]
-    out = subprocess.check_output(cmd, text=True, timeout=30).strip()
-    w, h = out.split("x")
-    return int(w), int(h)
+    """Returns (width, height) of the video via OpenCV (no ffprobe needed)."""
+    import cv2
+
+    cap = cv2.VideoCapture(video_path)
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    if w <= 0 or h <= 0:
+        raise RuntimeError(f"Не удалось определить размеры видео: {video_path}")
+    return w, h
 
 
 def _postprocess_sync(video_path: str) -> str:
@@ -106,7 +101,7 @@ def _postprocess_sync(video_path: str) -> str:
     # crop=w:h:x:y  then scale to 640x640
     vf = f"crop={crop_size}:{crop_size}:{crop_x}:{crop_y},scale={TARGET_SIZE}:{TARGET_SIZE}"
     cmd = [
-        "ffmpeg", "-y",
+        get_ffmpeg(), "-y",
         "-i", video_path,
         "-vf", vf,
         "-c:v", "libx264",

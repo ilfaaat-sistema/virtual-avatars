@@ -6,12 +6,8 @@ import subprocess
 import uuid
 from pathlib import Path
 
-try:
-    import static_ffmpeg as _sf; _sf.add_paths()
-except Exception:
-    pass
-
 import config
+from video.ffmpeg_bin import get_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +34,7 @@ def _mux_sync(video_path: str, audio_bytes: bytes) -> str:
         # -c:v copy   — no re-encoding of video (fast)
         # -c:a aac    — encode audio to AAC (required for Telegram mp4)
         cmd = [
-            "ffmpeg", "-y",
+            get_ffmpeg(), "-y",
             "-i", str(video_path),
             "-i", str(audio_tmp),
             "-map", "0:v:0",
