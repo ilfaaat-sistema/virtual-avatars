@@ -83,9 +83,17 @@ async def _process_job(job: dict, bot) -> None:
         await store.update_video_job_status(job_id, "failed", error=str(e)[:500])
         # Notify admin with actual error for diagnostics
         try:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "credits are depleted" in err_str:
+                admin_text = (
+                    "❌ Veo: кончились деньги на AI Studio\n"
+                    "Пополни баланс: https://aistudio.google.com/apikey"
+                )
+            else:
+                admin_text = f"❌ Veo job #{job_id} упал:\n<code>{err_str[:300]}</code>"
             await bot.send_message(
                 config.ADMIN_TELEGRAM_ID,
-                f"❌ Veo job #{job_id} упал:\n<code>{str(e)[:300]}</code>",
+                admin_text,
                 parse_mode="HTML",
             )
         except Exception:
