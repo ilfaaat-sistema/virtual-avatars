@@ -46,6 +46,31 @@ async def cmd_reset(message: Message) -> None:
     await message.answer("История нашего разговора очищена.")
 
 
+@router.message(Command("test_veo"))
+async def cmd_test_veo(message: Message) -> None:
+    if message.from_user.id != config.ADMIN_TELEGRAM_ID:
+        return
+    lines: list[str] = []
+    lines.append(f"VEO_API_KEY: {'✅ set' if config.VEO_API_KEY else '❌ not set'}")
+    lines.append(f"GOOGLE_SA_JSON: {'✅ set' if config.GOOGLE_SA_JSON else '❌ not set'}")
+    lines.append(f"GOOGLE_CLOUD_PROJECT: {config.GOOGLE_CLOUD_PROJECT or '❌ not set'}")
+    lines.append(f"VEO_MODEL: {config.VEO_MODEL}")
+    try:
+        from google import genai as _genai
+        lines.append("google-genai import: ✅ ok")
+    except Exception as e:
+        lines.append(f"google-genai import: ❌ {e}")
+        await message.answer("\n".join(lines))
+        return
+    try:
+        from video.veo import _make_client
+        client = _make_client()
+        lines.append("client init: ✅ ok")
+    except Exception as e:
+        lines.append(f"client init: ❌ {e}")
+    await message.answer("\n".join(lines))
+
+
 @router.message(F.text)
 async def handle_text(message: Message) -> None:
     if message.chat.type != ChatType.PRIVATE:
