@@ -161,9 +161,9 @@ async def _handle_video(message: Message, reply: str, meta: dict) -> None:
         return
 
     # No cache — generate via Veo
-    if not config.VEO_API_KEY:
-        # Graceful degradation: voice fallback if Veo not configured
-        logger.warning("VEO_API_KEY не задан — отвечаем голосом")
+    veo_ready = bool(config.VEO_API_KEY) or bool(config.GOOGLE_SA_JSON and config.GOOGLE_CLOUD_PROJECT)
+    if not veo_ready:
+        logger.warning("Veo не настроен — отвечаем голосом")
         ogg = await voice_module.tts(spoken_line or reply)
         if ogg:
             await message.answer_voice(voice=BufferedInputFile(ogg, filename="voice.ogg"))
