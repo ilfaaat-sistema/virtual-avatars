@@ -46,6 +46,11 @@ async def cmd_reset(message: Message) -> None:
     await message.answer("История нашего разговора очищена.")
 
 
+@router.message(Command("myid"))
+async def cmd_myid(message: Message) -> None:
+    await message.reply(f"Твой Telegram ID: <code>{message.from_user.id}</code>", parse_mode="HTML")
+
+
 @router.message(Command("test_veo"))
 async def cmd_test_veo(message: Message) -> None:
     if message.from_user.id != config.ADMIN_TELEGRAM_ID:
